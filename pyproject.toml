@@ -1,0 +1,22 @@
+[project]
+name = "notebook-tool"
+version = "0.1.0"
+description = "CLI utilities for comparing Markdown cells across Jupyter notebooks"
+readme = "README.md"
+authors = [
+    { name = "Charles Anderson", email = "andersc@wou.edu" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+notebook-tool = "notebook_tool:main"
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
