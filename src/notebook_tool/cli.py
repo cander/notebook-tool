@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .compare import compare_markdown_cells, render_report
+from .compare import compare_markdown_cells, render_report_with_names
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -42,7 +42,11 @@ def main() -> None:
             )
         except ValueError as exc:
             parser.exit(status=2, message=f"Error: {exc}\n")
-        report = render_report(differences)
+        report = render_report_with_names(
+            differences,
+            args.first_notebook,
+            args.second_notebook,
+        )
         print(report)
         raise SystemExit(1 if differences else 0)
 

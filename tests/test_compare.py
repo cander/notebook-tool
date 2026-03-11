@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from notebook_tool.compare import compare_markdown_cells, render_report
+from notebook_tool.compare import compare_markdown_cells, render_report_with_names
 
 
 def _write_notebook(path: Path, cells: list[dict]) -> None:
@@ -64,5 +64,7 @@ def test_compare_reports_differences(tmp_path: Path) -> None:
     assert len(differences) == 1
     assert differences[0].index == 2
 
-    report = render_report(differences)
+    report = render_report_with_names(differences, first, second)
     assert "Cell 2 differs:" in report
+    assert "--- first.ipynb" in report
+    assert "+++ second.ipynb" in report

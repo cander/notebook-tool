@@ -83,8 +83,20 @@ def compare_markdown_cells(
 
 
 def render_report(differences: list[MarkdownDifference]) -> str:
+    # Backward-compatible wrapper for callers that do not pass notebook names.
+    return render_report_with_names(differences, "first_notebook", "second_notebook")
+
+
+def render_report_with_names(
+    differences: list[MarkdownDifference],
+    first_notebook: str | Path,
+    second_notebook: str | Path,
+) -> str:
     if not differences:
         return "No Markdown differences found."
+
+    first_label = Path(first_notebook).name
+    second_label = Path(second_notebook).name
 
     lines = [f"Found {len(differences)} Markdown difference(s):"]
     for diff in differences:
@@ -93,8 +105,8 @@ def render_report(differences: list[MarkdownDifference]) -> str:
         unified = difflib.unified_diff(
             diff.first_text.splitlines(),
             diff.second_text.splitlines(),
-            fromfile="first_notebook",
-            tofile="second_notebook",
+            fromfile=first_label,
+            tofile=second_label,
             lineterm="",
         )
         diff_lines = list(unified)
