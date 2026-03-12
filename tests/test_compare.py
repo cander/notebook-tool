@@ -1,7 +1,14 @@
 import json
 from pathlib import Path
 
-from notebook_tool.compare import compare_markdown_cells, render_report_with_names, sync_markdown_cells
+from notebook_tool.compare import (
+    FIRST_FILE_COLOR,
+    SECOND_FILE_COLOR,
+    COLOR_RESET,
+    compare_markdown_cells,
+    render_report_with_names,
+    sync_markdown_cells,
+)
 
 
 def _write_notebook(path: Path, cells: list[dict]) -> None:
@@ -66,8 +73,14 @@ def test_compare_reports_differences(tmp_path: Path) -> None:
 
     report = render_report_with_names(differences, first, second)
     assert "Cell 2 differs:" in report
-    assert "--- first.ipynb" in report
-    assert "+++ second.ipynb" in report
+    assert f"First file : {FIRST_FILE_COLOR}first.ipynb{COLOR_RESET}" in report
+    assert f"Second file: {SECOND_FILE_COLOR}second.ipynb{COLOR_RESET}" in report
+    assert f"{FIRST_FILE_COLOR}second{COLOR_RESET}" in report
+    assert f"{SECOND_FILE_COLOR}DIFFERENT{COLOR_RESET}" in report
+    assert "--- first.ipynb" not in report
+    assert "+++ second.ipynb" not in report
+    assert "- second" not in report
+    assert "+ DIFFERENT" not in report
 
 
 def test_sync_copy_first_to_second(tmp_path: Path) -> None:

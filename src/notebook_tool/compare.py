@@ -8,6 +8,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+FIRST_FILE_COLOR = "\033[31m"
+SECOND_FILE_COLOR = "\033[32m"
+COLOR_RESET = "\033[0m"
+
+
 @dataclass(frozen=True)
 class MarkdownDifference:
     index: int
@@ -116,6 +121,35 @@ def _write_notebook(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=1), encoding="utf-8")
 
 
+def _colorize(label: str, color: str) -> str:
+    return f"{color}{label}{COLOR_RESET}"
+
+
+def _format_diff(first_text: str, second_text: str, first_label: str, second_label: str) -> list[str]:
+    ndiff_lines = list(difflib.ndiff(first_text.splitlines(), second_text.splitlines()))
+    if not ndiff_lines:
+        return []
+
+    content_lines: list[str] = []
+    for line in ndiff_lines:
+        if line.startswith("? "):
+            continue
+        if line.startswith("- "):
+            content_lines.append(_colorize(line[2:], FIRST_FILE_COLOR))
+            continue
+        if line.startswith("+ "):
+            content_lines.append(_colorize(line[2:], SECOND_FILE_COLOR))
+            continue
+        if line.startswith("  "):
+            content_lines.append(line[2:])
+
+    return [
+        f"First file : {_colorize(first_label, FIRST_FILE_COLOR)}",
+        f"Second file: {_colorize(second_label, SECOND_FILE_COLOR)}",
+        *content_lines,
+    ]
+
+
 def sync_markdown_cells(
     first_path: Path,
     second_path: Path,
@@ -132,6 +166,8 @@ def sync_markdown_cells(
 
     first_label = first_path.name
     second_label = second_path.name
+    first_label_colored = _colorize(first_label, FIRST_FILE_COLOR)
+    second_label_colored = _colorize(second_label, SECOND_FILE_COLOR)
 
     first_modified = False
     second_modified = False
@@ -145,20 +181,14 @@ def sync_markdown_cells(
             continue
 
         output_fn(f"\nMarkdown cell {md_idx + 1} differs:")
-        diff_lines = list(difflib.unified_diff(
-            first_text.splitlines(),
-            second_text.splitlines(),
-            fromfile=first_label,
-            tofile=second_label,
-            lineterm="",
-        ))
+        diff_lines = _format_diff(first_text, second_text, first_label, second_label)
         if diff_lines:
             output_fn("\n".join(diff_lines))
         else:
             output_fn("(Difference detected after normalization; raw line diff is empty.)")
 
-        output_fn(f"\n  [1] Copy {first_label} \u2192 {second_label}")
-        output_fn(f"  [2] Copy {second_label} \u2192 {first_label}")
+        output_fn(f"\n  [1] Copy {first_label_colored} \u2192 {second_label_colored}")
+        output_fn(f"  [2] Copy {second_label_colored} \u2192 {first_label_colored}")
         output_fn( "  [s] Skip")
         output_fn( "  [q] Quit")
 
@@ -189,10 +219,10 @@ def sync_markdown_cells(
 
     if first_modified:
         _write_notebook(first_path, first_data)
-        output_fn(f"\nWrote changes to {first_label}")
+        output_fn(f"\nWrote changes to {first_label_colored}")
     if second_modified:
         _write_notebook(second_path, second_data)
-        output_fn(f"\nWrote changes to {second_label}")
+        output_fn(f"\nWrote changes to {second_label_colored}")
     if not first_modified and not second_modified:
         output_fn("\nNo changes made.")
 
@@ -217,14 +247,7 @@ def render_report_with_names(
     for diff in differences:
         lines.append("")
         lines.append(f"Cell {diff.index} differs:")
-        unified = difflib.unified_diff(
-            diff.first_text.splitlines(),
-            diff.second_text.splitlines(),
-            fromfile=first_label,
-            tofile=second_label,
-            lineterm="",
-        )
-        diff_lines = list(unified)
+        diff_lines = _format_diff(diff.first_text, diff.second_text, first_label, second_label)
         if diff_lines:
             lines.extend(diff_lines)
         else:
