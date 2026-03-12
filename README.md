@@ -15,7 +15,6 @@ concerned with differences in those cells.
 
 ## To Do
 
-- sync cells between notebooks
 - grade code cells
 
 ## Setup
@@ -45,3 +44,27 @@ Exit codes:
 
 - `0`: no differences found
 - `1`: differences found
+
+### Sync Markdown cells
+
+Interactively compares the Nth Markdown cell in notebook A with the Nth
+Markdown cell in notebook B, shows a diff for each difference, and prompts
+you to resolve each one.
+
+- By default, whitespace differences are ignored.
+- Use `--strict-whitespace` to treat whitespace as meaningful.
+
+```bash
+uv run notebook-tool sync-markdown path/to/first.ipynb path/to/second.ipynb
+```
+
+```bash
+uv run notebook-tool sync-markdown path/to/first.ipynb path/to/second.ipynb --strict-whitespace
+```
+
+For each differing Markdown cell, choose one of:
+
+- `1`: copy from first notebook to second notebook
+- `2`: copy from second notebook to first notebook
+- `s`: skip this difference
+- `q`: quit the sync process

@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .compare import compare_markdown_cells, render_report_with_names
+from .compare import compare_markdown_cells, render_report_with_names, sync_markdown_cells
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -21,6 +21,18 @@ def build_parser() -> argparse.ArgumentParser:
     compare_parser.add_argument("first_notebook", type=Path, help="Path to first notebook")
     compare_parser.add_argument("second_notebook", type=Path, help="Path to second notebook")
     compare_parser.add_argument(
+        "--strict-whitespace",
+        action="store_true",
+        help="Treat whitespace differences as meaningful.",
+    )
+
+    sync_parser = subparsers.add_parser(
+        "sync-markdown",
+        help="Interactively synchronize Markdown cells between two notebooks.",
+    )
+    sync_parser.add_argument("first_notebook", type=Path, help="Path to first notebook")
+    sync_parser.add_argument("second_notebook", type=Path, help="Path to second notebook")
+    sync_parser.add_argument(
         "--strict-whitespace",
         action="store_true",
         help="Treat whitespace differences as meaningful.",
@@ -49,5 +61,16 @@ def main() -> None:
         )
         print(report)
         raise SystemExit(1 if differences else 0)
+
+    if args.command == "sync-markdown":
+        try:
+            sync_markdown_cells(
+                args.first_notebook,
+                args.second_notebook,
+                ignore_whitespace=not args.strict_whitespace,
+            )
+        except ValueError as exc:
+            parser.exit(status=2, message=f"Error: {exc}\n")
+        return
 
     parser.error(f"Unknown command: {args.command}")

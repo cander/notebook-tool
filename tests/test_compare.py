@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from notebook_tool.compare import compare_markdown_cells, render_report_with_names
+from notebook_tool.compare import compare_markdown_cells, render_report_with_names, sync_markdown_cells
 
 
 def _write_notebook(path: Path, cells: list[dict]) -> None:
@@ -68,3 +68,66 @@ def test_compare_reports_differences(tmp_path: Path) -> None:
     assert "Cell 2 differs:" in report
     assert "--- first.ipynb" in report
     assert "+++ second.ipynb" in report
+
+
+def test_sync_copy_first_to_second(tmp_path: Path) -> None:
+    first = tmp_path / "first.ipynb"
+    second = tmp_path / "second.ipynb"
+    _write_notebook(first, [{"cell_type": "markdown", "source": "from first"}])
+    _write_notebook(second, [{"cell_type": "markdown", "source": "from second"}])
+
+    choices = iter(["1"])
+    sync_markdown_cells(first, second, input_fn=lambda _: next(choices), output_fn=lambda _: None)
+
+    data = json.loads(second.read_text())
+    assert data["cells"][0]["source"] == "from first"
+    # First notebook unchanged
+    data_first = json.loads(first.read_text())
+    assert data_first["cells"][0]["source"] == "from first"
+
+
+def test_sync_copy_second_to_first(tmp_path: Path) -> None:
+    first = tmp_path / "first.ipynb"
+    second = tmp_path / "second.ipynb"
+    _write_notebook(first, [{"cell_type": "markdown", "source": "from first"}])
+    _write_notebook(second, [{"cell_type": "markdown", "source": "from second"}])
+
+    choices = iter(["2"])
+    sync_markdown_cells(first, second, input_fn=lambda _: next(choices), output_fn=lambda _: None)
+
+    data = json.loads(first.read_text())
+    assert data["cells"][0]["source"] == "from second"
+    # Second notebook unchanged
+    data_second = json.loads(second.read_text())
+    assert data_second["cells"][0]["source"] == "from second"
+
+
+def test_sync_skip(tmp_path: Path) -> None:
+    first = tmp_path / "first.ipynb"
+    second = tmp_path / "second.ipynb"
+    _write_notebook(first, [{"cell_type": "markdown", "source": "A"}, {"cell_type": "markdown", "source": "B"}])
+    _write_notebook(second, [{"cell_type": "markdown", "source": "X"}, {"cell_type": "markdown", "source": "Y"}])
+
+    # Skip first diff, copy second diff (1 → 2) 
+    choices = iter(["s", "1"])
+    sync_markdown_cells(first, second, input_fn=lambda _: next(choices), output_fn=lambda _: None)
+
+    data = json.loads(second.read_text())
+    assert data["cells"][0]["source"] == "X"  # skipped, unchanged
+    assert data["cells"][1]["source"] == "B"  # copied from first
+
+
+def test_sync_quit(tmp_path: Path) -> None:
+    first = tmp_path / "first.ipynb"
+    second = tmp_path / "second.ipynb"
+    _write_notebook(first, [{"cell_type": "markdown", "source": "A"}, {"cell_type": "markdown", "source": "B"}])
+    _write_notebook(second, [{"cell_type": "markdown", "source": "X"}, {"cell_type": "markdown", "source": "Y"}])
+
+    # Quit immediately on first diff — neither notebook should be modified
+    choices = iter(["q"])
+    sync_markdown_cells(first, second, input_fn=lambda _: next(choices), output_fn=lambda _: None)
+
+    data_first = json.loads(first.read_text())
+    data_second = json.loads(second.read_text())
+    assert data_first["cells"][0]["source"] == "A"
+    assert data_second["cells"][0]["source"] == "X"
