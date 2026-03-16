@@ -203,6 +203,18 @@ def _output_to_matrix(output: object) -> list[list[str]] | None:
     return None
 
 
+def _tabular_output_matrices(outputs: object) -> list[list[list[str]]]:
+    if not isinstance(outputs, list):
+        return []
+
+    matrices: list[list[list[str]]] = []
+    for output in outputs:
+        matrix = _output_to_matrix(output)
+        if matrix is not None:
+            matrices.append(matrix)
+    return matrices
+
+
 def _grade_output_matrices(
     key_matrix: list[list[str]],
     student_matrix: list[list[str]],
@@ -268,27 +280,18 @@ def grade_notebook_outputs(key_notebook: Path, notebook_to_grade: Path) -> tuple
 
         key_outputs = key_cell.get("outputs", [])
         student_outputs = student_cell.get("outputs", [])
-        if not isinstance(key_outputs, list) or not isinstance(student_outputs, list):
-            return False, f"Code cell {code_idx}: output format is invalid."
+        key_matrices = _tabular_output_matrices(key_outputs)
+        student_matrices = _tabular_output_matrices(student_outputs)
 
-        if len(key_outputs) != len(student_outputs):
+        if len(key_matrices) != len(student_matrices):
             return (
                 False,
-                f"Code cell {code_idx}: output count mismatch "
-                f"(key={len(key_outputs)}, notebook={len(student_outputs)}).",
+                f"Code cell {code_idx}: tabular output count mismatch "
+                f"(key={len(key_matrices)}, notebook={len(student_matrices)}).",
             )
 
-        for output_idx, key_output in enumerate(key_outputs, start=1):
-            student_output = student_outputs[output_idx - 1]
-            key_matrix = _output_to_matrix(key_output)
-            student_matrix = _output_to_matrix(student_output)
-
-            if key_matrix is None or student_matrix is None:
-                return (
-                    False,
-                    f"Code cell {code_idx}, output {output_idx}: "
-                    "could not parse tabular output for grading.",
-                )
+        for output_idx, key_matrix in enumerate(key_matrices, start=1):
+            student_matrix = student_matrices[output_idx - 1]
 
             message = _grade_output_matrices(
                 key_matrix,

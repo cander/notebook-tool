@@ -288,6 +288,70 @@ def test_grade_notebook_outputs_fails_fast_on_first_mismatch(tmp_path: Path) -> 
     assert "first cell of first row mismatch" in message
 
 
+def test_grade_notebook_outputs_ignores_non_tabular_outputs(tmp_path: Path) -> None:
+    key = tmp_path / "key.ipynb"
+    student = tmp_path / "student.ipynb"
+
+    _write_notebook(
+        key,
+        [
+            {
+                "cell_type": "code",
+                "source": "df",
+                "outputs": [
+                    {
+                        "output_type": "display_data",
+                        "data": {"text/html": "<div>widget</div>"},
+                    },
+                    {
+                        "output_type": "display_data",
+                        "data": {"text/html": "<div>plot</div>"},
+                    },
+                    {
+                        "output_type": "execute_result",
+                        "data": {
+                            "application/vnd.dataresource+json": {
+                                "data": [[1, 2], [3, 4]]
+                            }
+                        },
+                    },
+                ],
+            }
+        ],
+    )
+    _write_notebook(
+        student,
+        [
+            {
+                "cell_type": "code",
+                "source": "df",
+                "outputs": [
+                    {
+                        "output_type": "display_data",
+                        "data": {"text/html": "<div>widget</div>"},
+                    },
+                    {
+                        "output_type": "display_data",
+                        "data": {"text/html": "<div>plot</div>"},
+                    },
+                    {
+                        "output_type": "execute_result",
+                        "data": {
+                            "application/vnd.dataresource+json": {
+                                "data": [[1, 2], [3, 4]]
+                            }
+                        },
+                    },
+                ],
+            }
+        ],
+    )
+
+    passed, message = grade_notebook_outputs(key, student)
+    assert passed is True
+    assert message == "Notebook matches key output checks."
+
+
 def test_notebook_fixture_files_are_valid() -> None:
     fixtures = Path(__file__).parent / "fixtures"
     key = fixtures / "key_simple.notebook.json"
