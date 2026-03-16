@@ -3,7 +3,12 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .compare import compare_markdown_cells, render_report_with_names, sync_markdown_cells
+from .compare import (
+    compare_markdown_cells,
+    grade_notebook_outputs,
+    render_report_with_names,
+    sync_markdown_cells,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -37,6 +42,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Treat whitespace differences as meaningful.",
     )
+
+    grade_parser = subparsers.add_parser(
+        "grade-notebook",
+        help="Grade code cell outputs in a notebook against a key notebook.",
+    )
+    grade_parser.add_argument("key_notebook", type=Path, help="Path to key notebook")
+    grade_parser.add_argument("notebook_to_grade", type=Path, help="Path to notebook to grade")
 
     return parser
 
@@ -72,5 +84,16 @@ def main() -> None:
         except ValueError as exc:
             parser.exit(status=2, message=f"Error: {exc}\n")
         return
+
+    if args.command == "grade-notebook":
+        try:
+            passed, message = grade_notebook_outputs(
+                args.key_notebook,
+                args.notebook_to_grade,
+            )
+        except ValueError as exc:
+            parser.exit(status=2, message=f"Error: {exc}\n")
+        print(message)
+        raise SystemExit(0 if passed else 1)
 
     parser.error(f"Unknown command: {args.command}")

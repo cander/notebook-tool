@@ -25,6 +25,30 @@ uv sync
 
 ## Commands
 
+### Grade notebook outputs
+
+Compares code-cell outputs in a notebook against a key notebook.
+
+- The first notebook argument is treated as the key.
+- The second notebook argument is the notebook being graded.
+- For each output of each corresponding code cell, checks are run in this order:
+	- number of rows
+	- number of columns
+	- first cell of first row
+	- last cell of first row
+	- first cell of last row
+	- last cell of last row
+- Grading is fail-fast: the first failed check prints a message and stops.
+
+```bash
+uv run notebook-tool grade-notebook path/to/key.ipynb path/to/student.ipynb
+```
+
+Exit codes:
+
+- `0`: all checks passed
+- `1`: grading check failed
+
 ### Compare Markdown cells
 
 Compares the Nth Markdown cell in notebook A to the Nth Markdown cell in notebook B.

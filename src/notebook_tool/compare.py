@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import difflib
 import json
 import re
@@ -98,6 +99,207 @@ def _load_notebook(notebook_path: Path) -> dict:
     if not isinstance(data.get("cells"), list):
         raise ValueError(f"Notebook missing 'cells' list: {notebook_path}")
     return data
+
+
+def _code_cells(data: dict) -> list[dict]:
+    code_cells: list[dict] = []
+    for cell in data["cells"]:
+        if isinstance(cell, dict) and cell.get("cell_type") == "code":
+            code_cells.append(cell)
+    return code_cells
+
+
+def _source_to_text(source: object) -> str:
+    if isinstance(source, list):
+        return "".join(str(part) for part in source)
+    if isinstance(source, str):
+        return source
+    return str(source)
+
+
+def _matrix_from_payload(payload: object) -> list[list[str]] | None:
+    if isinstance(payload, list):
+        if not payload:
+            return []
+        if all(isinstance(row, list) for row in payload):
+            return [[str(cell) for cell in row] for row in payload]
+        if all(isinstance(row, dict) for row in payload):
+            first_row = payload[0]
+            columns = list(first_row.keys())
+            return [[str(row.get(col, "")) for col in columns] for row in payload]
+    if isinstance(payload, dict):
+        if "data" in payload and isinstance(payload["data"], list):
+            matrix = _matrix_from_payload(payload["data"])
+            if matrix is not None:
+                return matrix
+        if "values" in payload and isinstance(payload["values"], list):
+            matrix = _matrix_from_payload(payload["values"])
+            if matrix is not None:
+                return matrix
+    return None
+
+
+def _matrix_from_text(text: str) -> list[list[str]] | None:
+    stripped = text.strip()
+    if not stripped:
+        return None
+
+    # First try literal Python list-like output (for example, [[1, 2], [3, 4]]).
+    try:
+        parsed = ast.literal_eval(stripped)
+    except (SyntaxError, ValueError):
+        parsed = None
+    if parsed is not None:
+        matrix = _matrix_from_payload(parsed)
+        if matrix is not None:
+            return matrix
+
+    # Fallback for plain-text tabular output like pandas' text/plain representation.
+    lines = [line.rstrip() for line in stripped.splitlines() if line.strip()]
+    if len(lines) < 2:
+        return None
+
+    rows: list[list[str]] = []
+    for line in lines[1:]:
+        if not re.match(r"^\s*\d+", line):
+            continue
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        rows.append(parts[1:])
+
+    if not rows:
+        return None
+
+    width = len(rows[0])
+    if any(len(row) != width for row in rows):
+        return None
+
+    return rows
+
+
+def _output_to_matrix(output: object) -> list[list[str]] | None:
+    if not isinstance(output, dict):
+        return None
+
+    data = output.get("data")
+    if isinstance(data, dict):
+        for mime in ("application/json", "application/vnd.dataresource+json"):
+            if mime in data:
+                matrix = _matrix_from_payload(data[mime])
+                if matrix is not None:
+                    return matrix
+
+        if "text/plain" in data:
+            matrix = _matrix_from_text(_source_to_text(data["text/plain"]))
+            if matrix is not None:
+                return matrix
+
+    if "text" in output:
+        matrix = _matrix_from_text(_source_to_text(output["text"]))
+        if matrix is not None:
+            return matrix
+
+    return None
+
+
+def _grade_output_matrices(
+    key_matrix: list[list[str]],
+    student_matrix: list[list[str]],
+    *,
+    code_cell_index: int,
+    output_index: int,
+) -> str | None:
+    location = f"Code cell {code_cell_index}, output {output_index}"
+
+    if len(key_matrix) != len(student_matrix):
+        return (
+            f"{location}: row count mismatch "
+            f"(key={len(key_matrix)}, notebook={len(student_matrix)})."
+        )
+
+    if not key_matrix:
+        return f"{location}: output has no rows to grade."
+
+    key_cols = len(key_matrix[0])
+    student_cols = len(student_matrix[0]) if student_matrix else 0
+    if key_cols != student_cols:
+        return (
+            f"{location}: column count mismatch "
+            f"(key={key_cols}, notebook={student_cols})."
+        )
+
+    if key_cols == 0:
+        return f"{location}: output has no columns to grade."
+
+    checks = [
+        ("first cell of first row", key_matrix[0][0], student_matrix[0][0]),
+        ("last cell of first row", key_matrix[0][-1], student_matrix[0][-1]),
+        ("first cell of last row", key_matrix[-1][0], student_matrix[-1][0]),
+        ("last cell of last row", key_matrix[-1][-1], student_matrix[-1][-1]),
+    ]
+
+    for label, expected, actual in checks:
+        if expected.strip() != actual.strip():
+            return (
+                f"{location}: {label} mismatch "
+                f"(key={expected!r}, notebook={actual!r})."
+            )
+
+    return None
+
+
+def grade_notebook_outputs(key_notebook: Path, notebook_to_grade: Path) -> tuple[bool, str]:
+    key_data = _load_notebook(key_notebook)
+    student_data = _load_notebook(notebook_to_grade)
+
+    key_code_cells = _code_cells(key_data)
+    student_code_cells = _code_cells(student_data)
+
+    if len(key_code_cells) != len(student_code_cells):
+        return (
+            False,
+            "Code cell count mismatch "
+            f"(key={len(key_code_cells)}, notebook={len(student_code_cells)}).",
+        )
+
+    for code_idx, key_cell in enumerate(key_code_cells, start=1):
+        student_cell = student_code_cells[code_idx - 1]
+
+        key_outputs = key_cell.get("outputs", [])
+        student_outputs = student_cell.get("outputs", [])
+        if not isinstance(key_outputs, list) or not isinstance(student_outputs, list):
+            return False, f"Code cell {code_idx}: output format is invalid."
+
+        if len(key_outputs) != len(student_outputs):
+            return (
+                False,
+                f"Code cell {code_idx}: output count mismatch "
+                f"(key={len(key_outputs)}, notebook={len(student_outputs)}).",
+            )
+
+        for output_idx, key_output in enumerate(key_outputs, start=1):
+            student_output = student_outputs[output_idx - 1]
+            key_matrix = _output_to_matrix(key_output)
+            student_matrix = _output_to_matrix(student_output)
+
+            if key_matrix is None or student_matrix is None:
+                return (
+                    False,
+                    f"Code cell {code_idx}, output {output_idx}: "
+                    "could not parse tabular output for grading.",
+                )
+
+            message = _grade_output_matrices(
+                key_matrix,
+                student_matrix,
+                code_cell_index=code_idx,
+                output_index=output_idx,
+            )
+            if message:
+                return False, message
+
+    return True, "Notebook matches key output checks."
 
 
 def _markdown_cell_map(data: dict) -> list[tuple[int, str]]:

@@ -6,6 +6,7 @@ from notebook_tool.compare import (
     SECOND_FILE_COLOR,
     COLOR_RESET,
     compare_markdown_cells,
+    grade_notebook_outputs,
     render_report_with_names,
     sync_markdown_cells,
 )
@@ -144,3 +145,160 @@ def test_sync_quit(tmp_path: Path) -> None:
     data_second = json.loads(second.read_text())
     assert data_first["cells"][0]["source"] == "A"
     assert data_second["cells"][0]["source"] == "X"
+
+
+def test_grade_notebook_outputs_passes(tmp_path: Path) -> None:
+    key = tmp_path / "key.ipynb"
+    student = tmp_path / "student.ipynb"
+
+    _write_notebook(
+        key,
+        [
+            {
+                "cell_type": "code",
+                "source": "answer",
+                "outputs": [
+                    {
+                        "output_type": "execute_result",
+                        "data": {"application/json": [[1, 2], [3, 4]]},
+                    }
+                ],
+            }
+        ],
+    )
+    _write_notebook(
+        student,
+        [
+            {
+                "cell_type": "code",
+                "source": "answer",
+                "outputs": [
+                    {
+                        "output_type": "execute_result",
+                        "data": {"application/json": [[1, 2], [3, 4]]},
+                    }
+                ],
+            }
+        ],
+    )
+
+    passed, message = grade_notebook_outputs(key, student)
+    assert passed is True
+    assert message == "Notebook matches key output checks."
+
+
+def test_grade_notebook_outputs_fails_on_row_count(tmp_path: Path) -> None:
+    key = tmp_path / "key.ipynb"
+    student = tmp_path / "student.ipynb"
+
+    _write_notebook(
+        key,
+        [
+            {
+                "cell_type": "code",
+                "source": "answer",
+                "outputs": [
+                    {
+                        "output_type": "execute_result",
+                        "data": {"application/json": [[1, 2], [3, 4]]},
+                    }
+                ],
+            }
+        ],
+    )
+    _write_notebook(
+        student,
+        [
+            {
+                "cell_type": "code",
+                "source": "answer",
+                "outputs": [
+                    {
+                        "output_type": "execute_result",
+                        "data": {"application/json": [[1, 2]]},
+                    }
+                ],
+            }
+        ],
+    )
+
+    passed, message = grade_notebook_outputs(key, student)
+    assert passed is False
+    assert "row count mismatch" in message
+
+
+def test_grade_notebook_outputs_fails_fast_on_first_mismatch(tmp_path: Path) -> None:
+    key = tmp_path / "key.ipynb"
+    student = tmp_path / "student.ipynb"
+
+    _write_notebook(
+        key,
+        [
+            {
+                "cell_type": "code",
+                "source": "answer1",
+                "outputs": [
+                    {
+                        "output_type": "execute_result",
+                        "data": {"application/json": [[1, 2], [3, 4]]},
+                    }
+                ],
+            },
+            {
+                "cell_type": "code",
+                "source": "answer2",
+                "outputs": [
+                    {
+                        "output_type": "execute_result",
+                        "data": {"application/json": [[10, 20], [30, 40]]},
+                    }
+                ],
+            },
+        ],
+    )
+    _write_notebook(
+        student,
+        [
+            {
+                "cell_type": "code",
+                "source": "answer1",
+                "outputs": [
+                    {
+                        "output_type": "execute_result",
+                        "data": {"application/json": [[9, 2], [3, 4]]},
+                    }
+                ],
+            },
+            {
+                "cell_type": "code",
+                "source": "answer2",
+                "outputs": [
+                    {
+                        "output_type": "execute_result",
+                        "data": {"application/json": [[0, 0], [0, 0]]},
+                    }
+                ],
+            },
+        ],
+    )
+
+    passed, message = grade_notebook_outputs(key, student)
+    assert passed is False
+    assert "Code cell 1, output 1" in message
+    assert "first cell of first row mismatch" in message
+
+
+def test_notebook_fixture_files_are_valid() -> None:
+    fixtures = Path(__file__).parent / "fixtures"
+    key = fixtures / "key_simple.notebook.json"
+    student_pass = fixtures / "student_simple_pass.notebook.json"
+    student_fail = fixtures / "student_simple_fail_first_cell.notebook.json"
+
+    for notebook in (key, student_pass, student_fail):
+        data = json.loads(notebook.read_text())
+        assert isinstance(data.get("cells"), list)
+        assert len(data["cells"]) >= 1
+
+        first_cell = data["cells"][0]
+        assert first_cell.get("cell_type") == "code"
+        assert first_cell.get("metadata", {}).get("language") == "python"

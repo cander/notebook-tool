@@ -1,0 +1,29 @@
+{
+    "cells": [
+        {
+            "cell_type": "code",
+            "metadata": {
+                "id": "fixture-key-1",
+                "language": "python"
+            },
+            "source": [
+                "import pandas as pd\n",
+                "df = pd.DataFrame([[1, 2], [3, 4]])\n",
+                "df"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "metadata": {
+                "id": "fixture-key-2",
+                "language": "python"
+            },
+            "source": [
+                "df.tail(1)"
+            ]
+        }
+    ],
+    "metadata": {},
+    "nbformat": 4,
+    "nbformat_minor": 5
+}
