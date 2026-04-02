@@ -76,6 +76,8 @@ For each differing Markdown cell, choose one of:
 
 ### Grade notebook outputs
 
+_Not working, yet - code is significantly wrong._
+
 Compares code-cell outputs in a notebook against a key notebook.
 
 - The first notebook argument is treated as the key.
@@ -97,6 +99,8 @@ Exit codes:
 
 - `0`: all checks passed
 - `1`: grading check failed
+
+**Todo:** allow the second notebook (to be graded) to be specified as a URL.
 
 ## Development
 
