@@ -227,6 +227,86 @@ def test_grade_notebook_outputs_fails_on_row_count(tmp_path: Path) -> None:
     assert "row count mismatch" in message
 
 
+def test_grade_notebook_outputs_passes_when_key_and_student_have_zero_rows(tmp_path: Path) -> None:
+    key = tmp_path / "key.ipynb"
+    student = tmp_path / "student.ipynb"
+
+    _write_notebook(
+        key,
+        [
+            {
+                "cell_type": "code",
+                "source": "answer",
+                "outputs": [
+                    {
+                        "output_type": "execute_result",
+                        "data": {"application/json": []},
+                    }
+                ],
+            }
+        ],
+    )
+    _write_notebook(
+        student,
+        [
+            {
+                "cell_type": "code",
+                "source": "answer",
+                "outputs": [
+                    {
+                        "output_type": "execute_result",
+                        "data": {"application/json": []},
+                    }
+                ],
+            }
+        ],
+    )
+
+    passed, message = grade_notebook_outputs(key, student)
+    assert passed is True
+    assert message == "Notebook matches key output checks."
+
+
+def test_grade_notebook_outputs_fails_when_key_has_zero_rows_and_student_has_data(tmp_path: Path) -> None:
+    key = tmp_path / "key.ipynb"
+    student = tmp_path / "student.ipynb"
+
+    _write_notebook(
+        key,
+        [
+            {
+                "cell_type": "code",
+                "source": "answer",
+                "outputs": [
+                    {
+                        "output_type": "execute_result",
+                        "data": {"application/json": []},
+                    }
+                ],
+            }
+        ],
+    )
+    _write_notebook(
+        student,
+        [
+            {
+                "cell_type": "code",
+                "source": "answer",
+                "outputs": [
+                    {
+                        "output_type": "execute_result",
+                        "data": {"application/json": [[1, 2], [3, 4]]},
+                    }
+                ],
+            }
+        ],
+    )
+
+    passed, message = grade_notebook_outputs(key, student)
+    assert passed is False
+    assert "row count mismatch" in message
+
+
 def test_grade_notebook_outputs_fails_fast_on_first_mismatch(tmp_path: Path) -> None:
     key = tmp_path / "key.ipynb"
     student = tmp_path / "student.ipynb"

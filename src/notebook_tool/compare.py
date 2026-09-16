@@ -231,7 +231,8 @@ def _grade_output_matrices(
         )
 
     if not key_matrix:
-        return f"{location}: output has no rows to grade."
+        # key has no rows, so student must also have no rows (checked above). OK
+        return None
 
     key_cols = len(key_matrix[0])
     student_cols = len(student_matrix[0]) if student_matrix else 0
@@ -281,6 +282,7 @@ def grade_notebook_outputs(key_notebook: Path, notebook_to_grade: Path) -> tuple
         key_outputs = key_cell.get("outputs", [])
         student_outputs = student_cell.get("outputs", [])
         key_matrices = _tabular_output_matrices(key_outputs)
+        # print (f'code_idx', code_idx, 'key_matricies', key_matrices)
         student_matrices = _tabular_output_matrices(student_outputs)
 
         if len(key_matrices) != len(student_matrices):
